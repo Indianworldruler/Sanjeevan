@@ -251,7 +251,8 @@
 
   // Combine date + time into a single ISO string
   const datetimeStr = `${dateVal}T${timeVal}:00`; // seconds added
-  const epoch = Date.parse(datetimeStr + 'Z'); // treat input as UTC
+  const epoch = new Date(datetimeStr).getTime(); // treat input as local
+
 
   if (isNaN(epoch)) {
     alert('Invalid date or time format. Please use HH:MM (24hr) for time.');
