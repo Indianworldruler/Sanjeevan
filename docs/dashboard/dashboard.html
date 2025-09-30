@@ -476,7 +476,7 @@ function renderAlerts(alertList) {
 }
 
 function sendAlertEmail(toEmail, params) {
-  return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+  return emailjs.send(service_qfxsfnh, template_c3w8obj, {
     to_email: toEmail,
     to_name: params.to_name || '',
     from_name: params.from_name || '',
