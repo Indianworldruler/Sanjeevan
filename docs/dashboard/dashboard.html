@@ -125,6 +125,23 @@
 
     emailjs.init("F8iGzc13Igllqe6v1");
 
+    function sendAlertEmail(toEmail, params) {
+  return emailjs.send(
+    "service_qfxsfnh",   // your Service ID
+    "template_t9cyzom",  // your Template ID
+    {
+      title: params.title || '',
+      name: params.name || '',
+      time: params.time || '',
+      message: params.message || '',
+      to_email: toEmail
+    }
+  )
+  .then(res => console.log("📧 Email sent:", res.status, res.text))
+  .catch(err => console.error("❌ Email sending failed:", err));
+}
+
+
     const EMAILJS_PUBLIC_KEY = "YOUR_EMAILJS_PUBLIC_KEY";
     const EMAILJS_SERVICE_ID = "YOUR_EMAILJS_SERVICE_ID";
     const EMAILJS_TEMPLATE_ID = "YOUR_EMAILJS_TEMPLATE_ID";
