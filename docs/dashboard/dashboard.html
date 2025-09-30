@@ -251,7 +251,7 @@
 
   // Combine date + time into a single ISO string
   const datetimeStr = `${dateVal}T${timeVal}:00`; // seconds added
-  const epoch = new Date(datetimeStr).getTime();
+  const epoch = Date.parse(datetimeStr + 'Z'); // treat input as UTC
 
   if (isNaN(epoch)) {
     alert('Invalid date or time format. Please use HH:MM (24hr) for time.');
@@ -457,7 +457,10 @@ function renderAlerts(alertList) {
   alertList.forEach(a => {
     const div = document.createElement('div');
     div.className = 'post-card alert-card';
-    const dt = a.datetimeLocal ? a.datetimeLocal.replace('T', ' ') : (a.epoch ? new Date(a.epoch).toLocaleString() : '');
+    const dt = a.datetimeLocal
+           ? a.datetimeLocal.replace('T', ' ')
+           : (a.epoch ? new Date(a.epoch).toLocaleString() : '');
+
     div.innerHTML = `
       <div class="flex-between">
         <div><strong>${escapeHtml(a.name || a.email || 'Someone')}</strong></div>
