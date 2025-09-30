@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Sanjeevan - Login</title>
+</head>
+<body>
+  <h1 style="cursor:pointer" onclick="location.href='../index.html'">Sanjeevan</h1>
+
+  <h2>Login</h2>
+  <input id="email" type="email" placeholder="Email" />
+  <br><br>
+  <input id="password" type="password" placeholder="Password" />
+  <label><input id="showPass" type="checkbox" /> show password</label>
+  <br><br>
+  <button id="loginBtn">Login</button>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB3Pnr04DrjcBBsaHx3rr0RINktnQHs0oY",
+            authDomain: "kairos232005.firebaseapp.com",
+            databaseURL: "https://kairos232005-default-rtdb.firebaseio.com",
+            projectId: "kairos232005",
+            storageBucket: "kairos232005.firebasestorage.app",
+            messagingSenderId: "750292953272",
+            appId: "1:750292953272:web:c6f7e85f64b6d52096ec4d"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    document.getElementById('showPass').addEventListener('change', (e) => {
+      document.getElementById('password').type = e.target.checked ? 'text' : 'password';
+    });
+
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        alert('Email and password are required');
+        return;
+      }
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        window.location.href = "../dashboard/dashboard.html";
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  </script>
+</body>
+</html>
