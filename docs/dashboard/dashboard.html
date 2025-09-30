@@ -28,8 +28,11 @@
     .flex-between { display:flex; justify-content:space-between; align-items:center; }
     .alert-card { border-left:4px solid #ff6b6b; padding-left:12px; background:#fff7f7; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
-  <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+
+
+
 </head>
 <body>
 
@@ -124,7 +127,7 @@
     const EMAILJS_SERVICE_ID = "YOUR_EMAILJS_SERVICE_ID";
     const EMAILJS_TEMPLATE_ID = "YOUR_EMAILJS_TEMPLATE_ID";
 
-    emailjs.init(EMAILJS_PUBLIC_KEY);
+    
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -293,6 +296,7 @@
     function startPostsListener() {
       const postsColRef = collection(db, 'posts');
       postsUnsubscribe = onSnapshot(postsColRef, (snap) => {
+        console.log("📡 Snapshot triggered, posts count:", snap.size);
         const allPosts = [];
         snap.forEach(d => allPosts.push({ id: d.id, ...d.data() }));
         renderMyPosts(allPosts);
@@ -395,6 +399,8 @@
 }
 
     function computeAndRenderAlerts(allPosts) {
+  console.log("⚡ computeAndRenderAlerts running. Total posts:", allPosts.length);
+
   const myPosts = allPosts.filter(p => p.uid === currentUser.uid);
   const otherPosts = allPosts.filter(p => p.uid !== currentUser.uid);
 
@@ -420,6 +426,7 @@
         getDateStr(op.epoch) === getDateStr(myp.epoch) &&
         op.epoch < myp.epoch
       ) {
+        console.log("✅ Alert condition matched! Other post id:", op.id);
         alertsMap.set(op.id, op);
       }
     }
@@ -440,11 +447,14 @@
       message: `${op.name || op.email} has visited ${op.location} at ${op.datetimeLocal || new Date(op.epoch).toLocaleString()} and reported: ${op.whatFacing}`
     }).then(() => {
       alertedSet.add(id);
-    }).catch(() => { alertedSet.add(id); });
+    }).catch(() => {
+      alertedSet.add(id);
+    });
   }
 
   renderAlerts(Array.from(alertsMap.values()));
 }
+
 
 function renderAlerts(alertList) {
   myAlertsEl.innerHTML = '';
@@ -475,16 +485,8 @@ function renderAlerts(alertList) {
   });
 }
 
-function sendAlertEmail(toEmail, params) {
-  return emailjs.send(service_qfxsfnh, template_c3w8obj, {
-    to_email: toEmail,
-    to_name: params.to_name || '',
-    from_name: params.from_name || '',
-    location: params.location || '',
-    datetime: params.datetime || '',
-    message: params.message || ''
-  });
-}
+
+
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -502,6 +504,27 @@ function escapeHtml(str) {
   });
 }
 
+  </script>
+  <script>
+    // Initialize EmailJS once
+    emailjs.init("F8iGzc13Igllqe6v1"); // <-- your real public key from EmailJS
+
+    // Function to send alert emails
+    function sendAlertEmail(toEmail, params) {
+      return emailjs.send(
+        "service_qfxsfnh",   // <-- your real Service ID
+        "template_t9cyzom",  // <-- your real Template ID
+        {
+          title: params.title || '',   // maps to {{title}} in your template
+          name: params.name || '',     // maps to {{name}}
+          time: params.time || '',     // maps to {{time}}
+          message: params.message || '', // maps to {{message}}
+          to_email: toEmail             // optional if included in template
+        }
+      )
+      .then(res => console.log("📧 Email sent:", res.status, res.text))
+      .catch(err => console.error("❌ Email sending failed:", err));
+    }
   </script>
 </body>
 </html>
