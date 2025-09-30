@@ -123,6 +123,8 @@
             appId: "1:750292953272:web:c6f7e85f64b6d52096ec4d"
     };
 
+    emailjs.init("F8iGzc13Igllqe6v1");
+
     const EMAILJS_PUBLIC_KEY = "YOUR_EMAILJS_PUBLIC_KEY";
     const EMAILJS_SERVICE_ID = "YOUR_EMAILJS_SERVICE_ID";
     const EMAILJS_TEMPLATE_ID = "YOUR_EMAILJS_TEMPLATE_ID";
@@ -154,7 +156,7 @@
 
     let currentUser = null;
     let currentUserData = null;
-    let alertedSet = new Set();
+    
 
     brand.addEventListener('click', () => { location.href = '../auth/index.html'; });
     exploreBtn.addEventListener('click', () => { alert('Explore cases — placeholder'); });
@@ -398,7 +400,7 @@
   });
 }
 
-    function computeAndRenderAlerts(allPosts) {
+    async function computeAndRenderAlerts(allPosts) {
   console.log("⚡ computeAndRenderAlerts running. Total posts:", allPosts.length);
 
   const myPosts = allPosts.filter(p => p.uid === currentUser.uid);
@@ -406,7 +408,6 @@
 
   const alertsMap = new Map();
 
-  // Enhanced location normalization: lowercase, trim, remove punctuation, collapse spaces
   const normalizeLocation = loc =>
     loc.trim()
        .toLowerCase()
@@ -414,6 +415,8 @@
        .replace(/\s+/g, ' ');
 
   const getDateStr = epoch => new Date(epoch).toISOString().split('T')[0]; // YYYY-MM-DD
+
+  const alertsSentColRef = collection(db, 'users', currentUser.uid, 'alertsSent');
 
   for (const myp of myPosts) {
     if (!myp.location || !myp.epoch) continue;
@@ -426,30 +429,44 @@
         getDateStr(op.epoch) === getDateStr(myp.epoch) &&
         op.epoch < myp.epoch
       ) {
-        console.log("✅ Alert condition matched! Other post id:", op.id);
-        alertsMap.set(op.id, op);
+        // check Firestore if alert already sent
+        const alertDocRef = doc(alertsSentColRef, op.id);
+        const alertDocSnap = await getDoc(alertDocRef);
+
+        if (!alertDocSnap.exists()) {
+          // Email not sent yet, send email
+          try {
+            await sendAlertEmail(currentUser.email, {
+              title: `New alert for ${op.location}`,
+              name: currentUserData.name || currentUser.email,
+              time: op.datetimeLocal || (op.epoch ? new Date(op.epoch).toLocaleString() : ''),
+              message: `${op.name || op.email} has visited ${op.location} at ${op.datetimeLocal || new Date(op.epoch).toLocaleString()} and reported: ${op.whatFacing}`
+            });
+
+            // store in Firestore
+            await setDoc(alertDocRef, {
+              postId: op.id,
+              locationNormalized: normalizeLocation(op.location),
+              datetimeEpoch: op.epoch,
+              sentAt: serverTimestamp()
+            });
+
+            console.log("📧 Alert email sent & recorded for post:", op.id);
+          } catch (err) {
+            console.error("❌ Email sending failed for post:", op.id, err);
+          }
+        } else {
+          console.log(`ℹ️ Email NOT sent for post ${op.id} — alert already recorded.`);
+        }
+
+
+        // Add to alertsMap for display (only latest per location+date)
+        const key = `${normalizeLocation(op.location)}_${getDateStr(op.epoch)}`;
+        if (!alertsMap.has(key) || op.epoch > (alertsMap.get(key).epoch || 0)) {
+          alertsMap.set(key, op);
+        }
       }
     }
-  }
-
-  const newAlertIds = [];
-  for (const id of alertsMap.keys()) {
-    if (!alertedSet.has(id)) newAlertIds.push(id);
-  }
-
-  for (const id of newAlertIds) {
-    const op = alertsMap.get(id);
-    sendAlertEmail(currentUser.email, {
-      to_name: currentUserData.name || currentUser.email,
-      from_name: op.name || op.email || 'Someone',
-      location: op.location,
-      datetime: op.datetimeLocal || (op.epoch ? new Date(op.epoch).toLocaleString() : ''),
-      message: `${op.name || op.email} has visited ${op.location} at ${op.datetimeLocal || new Date(op.epoch).toLocaleString()} and reported: ${op.whatFacing}`
-    }).then(() => {
-      alertedSet.add(id);
-    }).catch(() => {
-      alertedSet.add(id);
-    });
   }
 
   renderAlerts(Array.from(alertsMap.values()));
@@ -504,27 +521,6 @@ function escapeHtml(str) {
   });
 }
 
-  </script>
-  <script>
-    // Initialize EmailJS once
-    emailjs.init("F8iGzc13Igllqe6v1"); // <-- your real public key from EmailJS
-
-    // Function to send alert emails
-    function sendAlertEmail(toEmail, params) {
-      return emailjs.send(
-        "service_qfxsfnh",   // <-- your real Service ID
-        "template_t9cyzom",  // <-- your real Template ID
-        {
-          title: params.title || '',   // maps to {{title}} in your template
-          name: params.name || '',     // maps to {{name}}
-          time: params.time || '',     // maps to {{time}}
-          message: params.message || '', // maps to {{message}}
-          to_email: toEmail             // optional if included in template
-        }
-      )
-      .then(res => console.log("📧 Email sent:", res.status, res.text))
-      .catch(err => console.error("❌ Email sending failed:", err));
-    }
   </script>
 </body>
 </html>
