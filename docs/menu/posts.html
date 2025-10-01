@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>All Posts</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <style>
+    body {
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f6f8fc;
+      color: #0f172a;
+      min-height: 100vh;
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 26px;
+      color: #6d28d9;
+    }
+
+    .search-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin: 20px auto;
+      max-width: 800px;
+    }
+
+    .search-bar input,
+    .search-bar button {
+      padding: 10px 14px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+
+    .search-bar input:focus {
+      border-color: #6d28d9;
+      box-shadow: 0 4px 12px rgba(109, 40, 217, 0.12);
+    }
+
+    .search-bar button {
+      background: linear-gradient(90deg,#6d28d9,#06b6d4);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.15s ease;
+    }
+
+    .search-bar button:hover {
+      transform: translateY(-1px);
+    }
+
+    #postsContainer {
+      max-width: 900px;
+      margin: 0 auto 40px auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 0 16px;
+    }
+
+    .post-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(15,23,42,0.08);
+      padding: 16px 20px;
+      transition: transform 0.2s ease;
+    }
+
+    .post-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .post-card p {
+      margin: 6px 0;
+      font-size: 14px;
+      word-break: break-word;
+    }
+
+    @media (max-width: 620px) {
+      .search-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .search-bar input,
+      .search-bar button {
+        width: 100%;
+      }
+
+      #postsContainer {
+        padding: 0 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Posts Data</h1>
+
+  <div class="search-bar">
+    <input type="text" id="locationSearch" placeholder="Search by location">
+    <input type="date" id="dateSearch">
+    <button onclick="applySearch()">Search</button>
+    <button onclick="clearSearch()">Clear</button>
+  </div>
+
+  <div id="postsContainer"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyB3Pnr04DrjcBBsaHx3rr0RINktnQHs0oY",
+      authDomain: "kairos232005.firebaseapp.com",
+      projectId: "kairos232005",
+      storageBucket: "kairos232005.appspot.com",
+      messagingSenderId: "750292953272",
+      appId: "1:750292953272:web:c6f7e85f64b6d52096ec4d"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let allPosts = [];
+
+    db.collection("posts").onSnapshot(snapshot => {
+      allPosts = [];
+      snapshot.forEach(doc => {
+        allPosts.push({ id: doc.id, ...doc.data() });
+      });
+      allPosts.sort((a,b) => (b.epoch||0) - (a.epoch||0));
+      renderPosts(allPosts);
+    });
+
+    function renderPosts(posts) {
+      const container = document.getElementById("postsContainer");
+      container.innerHTML = "";
+      if (!posts.length) {
+        container.innerHTML = "<p style='text-align:center;color:#64748b;'>No posts found.</p>";
+        return;
+      }
+      posts.forEach(post => {
+        const div = document.createElement("div");
+        div.className = "post-card";
+        div.innerHTML = `
+          <p><b>User:</b> ${post.name || post.email || "Unknown"}</p>
+          <p><b>Location:</b> ${post.location || "N/A"}</p>
+          <p><b>Date/Time:</b> ${post.datetimeLocal || (post.epoch ? new Date(post.epoch).toLocaleString() : "N/A")}</p>
+          <p><b>Symptoms:</b> ${post.symptoms || "N/A"}</p>
+          <p><b>What Facing:</b> ${post.whatFacing || "N/A"}</p>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function applySearch() {
+      const loc = document.getElementById("locationSearch").value.trim().toLowerCase();
+      const date = document.getElementById("dateSearch").value;
+      let filtered = allPosts;
+      if (loc) filtered = filtered.filter(p => (p.location||"").toLowerCase().includes(loc));
+      if (date) filtered = filtered.filter(p => p.epoch && new Date(p.epoch).toISOString().split("T")[0] === date);
+      renderPosts(filtered);
+    }
+
+    function clearSearch() {
+      document.getElementById("locationSearch").value = "";
+      document.getElementById("dateSearch").value = "";
+      renderPosts(allPosts);
+    }
+  </script>
+</body>
+</html>
