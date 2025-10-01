@@ -290,15 +290,14 @@
           <input id="email" type="email" placeholder="Enter your email" required />
         </div>
         
-       <div class="form-group">
-  <label for="password">Password</label>
-  <input id="loginPassword" type="password" placeholder="Enter your password" required />
-  <div class="checkbox-group">
-    <input id="toggleLoginPass" type="checkbox" />
-    <label for="toggleLoginPass">Show password</label>
-  </div>
-</div>
-
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="Enter your password" required />
+          <div class="checkbox-group">
+            <input id="toggleLoginPass" type="checkbox" />
+            <label for="toggleLoginPass">Show password</label>
+          </div>
+        </div>
 
         <button id="loginBtn" class="login-btn" type="submit">Login</button>
       </form>
@@ -330,11 +329,13 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
 
+    // Show/hide password
     document.getElementById('toggleLoginPass').addEventListener('change', (e) => {
-    const pwd = document.getElementById('loginPassword');
-    pwd.type = e.target.checked ? 'text' : 'password';
-  });
+      const pwd = document.getElementById('password');
+      pwd.type = e.target.checked ? 'text' : 'password';
+    });
 
+    // Login button
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
@@ -346,7 +347,7 @@
 
       try {
         await signInWithEmailAndPassword(auth, email, password);
-        window.location.href = "";
+        window.location.href = "../dashboard/dashboard.html";
       } catch (err) {
         alert(err.message);
       }
