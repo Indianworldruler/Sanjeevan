@@ -312,15 +312,14 @@
           <input id="email" type="email" placeholder="Enter your email" required />
         </div>
         
-       <div class="form-group">
-  <label for="password">Password</label>
-  <input id="signupPassword" type="password" placeholder="Create a password" required />
-  <div class="checkbox-group">
-    <input id="toggleSignupPass" type="checkbox" />
-    <label for="toggleSignupPass">Show password</label>
-  </div>
-</div>
-
+        <div class="form-group">
+          <label for="signupPassword">Password</label>
+          <input id="signupPassword" type="password" placeholder="Create a password" required />
+          <div class="checkbox-group">
+            <input id="toggleSignupPass" type="checkbox" />
+            <label for="toggleSignupPass">Show password</label>
+          </div>
+        </div>
 
         <div class="form-group">
           <label for="age">Age</label>
@@ -335,7 +334,7 @@
       </div>
       
       <div class="login-link">
-        Already have an account? <a href="" onclick="">Click here to Login</a>
+        Already have an account? <a href="login.html">Click here to Login</a>
       </div>
     </div>
   </div>
@@ -359,15 +358,17 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    // Password toggle
     document.getElementById('toggleSignupPass').addEventListener('change', (e) => {
-    const pwd = document.getElementById('signupPassword');
-    pwd.type = e.target.checked ? 'text' : 'password';
-  });
+      const pwd = document.getElementById('signupPassword');
+      pwd.type = e.target.checked ? 'text' : 'password';
+    });
 
+    // Sign In button
     document.getElementById('signInBtn').addEventListener('click', async () => {
       const name = document.getElementById('name').value.trim();
       const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
+      const password = document.getElementById('signupPassword').value;
       const age = document.getElementById('age').value;
 
       if (!name || !email || !password) {
@@ -387,7 +388,8 @@
           createdAt: serverTimestamp()
         });
 
-        window.location.href = "";
+        // Redirect to login page
+        window.location.href = "login.html";
       } catch (err) {
         alert(err.message);
       }
