@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Health Dashboard</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f6f8fc;
+      color: #0f172a;
+    }
+
+    h1, h2 {
+      text-align: center;
+      margin: 20px 0 10px 0;
+      color: #6d28d9;
+    }
+
+    .chart-container {
+      width: 90%;
+      max-width: 900px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(15,23,42,0.08);
+    }
+
+    #dataSummary {
+      width: 90%;
+      max-width: 900px;
+      margin: 20px auto 40px auto;
+      overflow-x: auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(15,23,42,0.08);
+      padding: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 500px;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      text-align: center;
+      border-bottom: 1px solid #e6eefb;
+      font-size: 14px;
+    }
+
+    th {
+      background: linear-gradient(90deg, #6d28d9, #06b6d4);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    tr:hover {
+      background: #f7f9fc;
+    }
+
+    @media (max-width: 768px) {
+      .chart-container, #dataSummary {
+        width: 95%;
+        padding: 16px;
+      }
+
+      th, td {
+        padding: 10px 6px;
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      h1 { font-size: 22px; }
+      h2 { font-size: 18px; }
+      th, td { font-size: 12px; padding: 8px 4px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Analysis Dashboard</h1>
+
+  <h2>Growth of Users per Day</h2>
+  <div class="chart-container">
+    <canvas id="lineChart"></canvas>
+  </div>
+
+  <h2>Data Summary</h2>
+  <div id="dataSummary"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyB3Pnr04DrjcBBsaHx3rr0RINktnQHs0oY",
+      authDomain: "kairos232005.firebaseapp.com",
+      projectId: "kairos232005",
+      storageBucket: "kairos232005.appspot.com",
+      messagingSenderId: "750292953272",
+      appId: "1:750292953272:web:c6f7e85f64b6d52096ec4d"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const diseaseColors = {};
+    const colorPalette = [
+      '#FF4136', '#0074D9', '#2ECC40', '#FF851B', '#B10DC9', 
+      '#FFDC00', '#001f3f', '#39CCCC', '#01FF70', '#85144b'
+    ];
+    let colorIndex = 0;
+    let lineChart = null;
+
+    function updateDashboard(snapshot) {
+      const growthMap = {};
+      const dailyKeys = {};
+      const countMap = {};
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const wf = data.whatFacing || "Unknown";
+        const loc = data.location || "Unknown";
+        const ep = data.epoch || 0;
+        const dateStr = new Date(ep).toISOString().split("T")[0];
+
+        if (!diseaseColors[wf]) diseaseColors[wf] = colorPalette[colorIndex++ % colorPalette.length];
+
+        const summaryKey = loc + "|" + wf;
+        if (!countMap[summaryKey]) countMap[summaryKey] = 0;
+        countMap[summaryKey]++;
+
+        const uniqueKey = wf + "|" + ep;
+        if (!dailyKeys[uniqueKey]) {
+          if (!growthMap[wf]) growthMap[wf] = {};
+          if (!growthMap[wf][dateStr]) growthMap[wf][dateStr] = 0;
+          growthMap[wf][dateStr]++;
+          dailyKeys[uniqueKey] = true;
+        }
+      });
+
+      const allDatesSet = new Set();
+      Object.values(growthMap).forEach(datesObj => Object.keys(datesObj).forEach(d => allDatesSet.add(d)));
+      const allDates = Array.from(allDatesSet).sort();
+
+      const lineDatasets = Object.keys(growthMap).map(wf => {
+        const data = allDates.map(d => growthMap[wf][d] || 0);
+        const color = diseaseColors[wf];
+        return {
+          label: wf,
+          data,
+          borderColor: color,
+          backgroundColor: color,
+          fill: false,
+          tension: 0.2,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          pointBackgroundColor: color
+        };
+      });
+
+      if (lineChart) {
+        lineChart.data.labels = allDates;
+        lineChart.data.datasets = lineDatasets;
+        lineChart.update();
+      } else {
+        const ctx = document.getElementById('lineChart').getContext('2d');
+        lineChart = new Chart(ctx, {
+          type: 'line',
+          data: { labels: allDates, datasets: lineDatasets },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+              x: { title: { display: true, text: 'Date' } },
+              y: { title: { display: true, text: 'Number of Users' }, beginAtZero: true, ticks: { precision: 0, stepSize: 1 } }
+            }
+          }
+        });
+      }
+
+      let summaryHTML = "<table><tr><th>Location</th><th>What Facing</th><th>Users Count</th></tr>";
+      Object.keys(countMap).forEach(key => {
+        const [loc, wf] = key.split("|");
+        summaryHTML += `<tr><td>${loc}</td><td>${wf}</td><td>${countMap[key]}</td></tr>`;
+      });
+      summaryHTML += "</table>";
+      document.getElementById("dataSummary").innerHTML = summaryHTML;
+    }
+
+    db.collection("posts").onSnapshot(snapshot => updateDashboard(snapshot));
+  </script>
+</body>
+</html>
