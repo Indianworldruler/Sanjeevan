@@ -298,6 +298,10 @@
       deleteDoc,
       getDocs
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
+    
+
+
 
     const firebaseConfig = {
       apiKey: "AIzaSyB3Pnr04DrjcBBsaHx3rr0RINktnQHs0oY",
@@ -309,33 +313,57 @@
             appId: "1:750292953272:web:c6f7e85f64b6d52096ec4d"
     };
 
-    emailjs.init("F8iGzc13Igllqe6v1");
+    navigator.serviceWorker.register('../firebase-messaging-sw.js')
+  .then(registration => {
+    console.log('✅ Service Worker registered with scope:', registration.scope);
+  })
+  .catch(err => {
+    console.error('❌ Service Worker registration failed:', err);
+  });
 
-    function sendAlertEmail(toEmail, params) {
-  return emailjs.send(
-    "service_qfxsfnh",   // your Service ID
-    "template_t9cyzom",  // your Template ID
-    {
-      title: params.title || '',
-      name: params.name || '',
-      time: params.time || '',
-      message: params.message || '',
-      to_email: toEmail
+
+    async function sendAlertNotification(userId, { title, message }) {
+  try {
+    // Get user's FCM token
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    const fcmToken = userDoc.exists() ? userDoc.data().fcmToken : null;
+    if (!fcmToken) {
+      console.warn(`⚠️ No FCM token for user ${userId}`);
+      return;
     }
-  )
-  .then(res => console.log("📧 Email sent:", res.status, res.text))
-  .catch(err => console.error("❌ Email sending failed:", err));
+
+    // Call your server endpoint that sends FCM notifications
+    // You need a Cloud Function or server endpoint for actual delivery
+    await fetch('https://us-central1-kairos232005.cloudfunctions.net/sendNotification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: fcmToken,
+        notification: { title, body: message },
+      })
+    });
+
+    console.log(`📲 Notification request sent for user ${userId}`);
+  } catch (err) {
+    console.error('❌ Error sending notification:', err);
+  }
 }
 
-    const EMAILJS_PUBLIC_KEY = "YOUR_EMAILJS_PUBLIC_KEY";
-    const EMAILJS_SERVICE_ID = "YOUR_EMAILJS_SERVICE_ID";
-    const EMAILJS_TEMPLATE_ID = "YOUR_EMAILJS_TEMPLATE_ID";
 
-    
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    const messaging = getMessaging(app);
+
+    
+
+
+    onMessage(messaging, (payload) => {
+      console.log("📲 Notification received on client:", payload);
+      alert(`New alert: ${payload.notification?.title}\n${payload.notification?.body}`);
+    });
+
 
     const brand = document.getElementById('brand');
     const exploreBtn = document.getElementById('exploreBtn');
@@ -385,6 +413,37 @@ dropdown.addEventListener('mouseleave', () => {
   }, 200); // small delay for cursor to reach dropdown
 });
 
+async function requestNotificationPermission() {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      console.log("🚫 Notification permission denied");
+      return;
+    }
+
+    // Ensure service worker is ready
+    const registration = await navigator.serviceWorker.ready;
+
+    // Get the FCM token, bind to service worker
+    const token = await getToken(messaging, {
+      vapidKey: 'BJsqkjLnxJGGPMkBAYeJoUSH-DN2trUmbKaujhTdaEVRXhHNs8oyGhMyn0DxEqdk2_GXu3UXTVen8WaL97r1eGk',
+      serviceWorkerRegistration: registration
+    });
+
+    if (token) {
+      console.log("✅ FCM Token:", token);
+
+      // Save token in Firestore under the logged-in user
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userDocRef, { fcmToken: token }).catch(()=>{});
+    } else {
+      console.log("⚠️ No registration token available.");
+    }
+  } catch (err) {
+    console.error("❌ Error getting FCM token:", err);
+  }
+}
+
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -393,6 +452,9 @@ dropdown.addEventListener('mouseleave', () => {
       }
       currentUser = user;
       await loadCurrentUserData();
+
+      await requestNotificationPermission();
+
       startPostsListener();
     });
 
@@ -407,6 +469,8 @@ dropdown.addEventListener('mouseleave', () => {
       }
       renderUserInfo();
     }
+
+    
 
     function renderUserInfo() {
       displayNameEl.textContent = currentUserData.name || '(no name)';
@@ -630,70 +694,66 @@ dropdown.addEventListener('mouseleave', () => {
   const otherPosts = allPosts.filter(p => p.uid !== currentUser.uid);
 
   const alertsMap = new Map();
-
-  const normalizeLocation = loc =>
-    loc.trim()
-       .toLowerCase()
-       .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
-       .replace(/\s+/g, ' ');
-
-  const getDateStr = epoch => new Date(epoch).toISOString().split('T')[0]; // YYYY-MM-DD
+  const normalizeLocation = loc => loc.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '').replace(/\s+/g, ' ');
 
   const alertsSentColRef = collection(db, 'users', currentUser.uid, 'alertsSent');
 
   for (const myp of myPosts) {
     if (!myp.location || !myp.epoch) continue;
 
+    // Find latest previous post at same location
+    let latestPrev = null;
     for (const op of otherPosts) {
       if (!op.location || !op.epoch) continue;
-
-      if (
-        normalizeLocation(op.location) === normalizeLocation(myp.location) &&
-        getDateStr(op.epoch) === getDateStr(myp.epoch) &&
-        op.epoch < myp.epoch
-      ) {
-        // check Firestore if alert already sent
-        const alertDocRef = doc(alertsSentColRef, op.id);
-        const alertDocSnap = await getDoc(alertDocRef);
-
-        if (!alertDocSnap.exists()) {
-          // Email not sent yet, send email
-          try {
-            await sendAlertEmail(currentUser.email, {
-              title: `New alert for ${op.location}`,
-              name: currentUserData.name || currentUser.email,
-              time: op.datetimeLocal || (op.epoch ? new Date(op.epoch).toLocaleString() : ''),
-              message: `${op.name || op.email} has visited ${op.location} at ${op.datetimeLocal || new Date(op.epoch).toLocaleString()} and reported: ${op.whatFacing}`
-            });
-
-            // store in Firestore
-            await setDoc(alertDocRef, {
-              postId: op.id,
-              locationNormalized: normalizeLocation(op.location),
-              datetimeEpoch: op.epoch,
-              sentAt: serverTimestamp()
-            });
-
-            console.log("📧 Alert email sent & recorded for post:", op.id);
-          } catch (err) {
-            console.error("❌ Email sending failed for post:", op.id, err);
-          }
-        } else {
-          console.log(`ℹ️ Email NOT sent for post ${op.id} — alert already recorded.`);
+      if (normalizeLocation(op.location) !== normalizeLocation(myp.location)) continue;
+      if (op.epoch < myp.epoch) {
+        if (!latestPrev || op.epoch > latestPrev.epoch) {
+          latestPrev = op;
         }
+      }
+    }
 
+    if (latestPrev) {
+      const op = latestPrev;
 
-        // Add to alertsMap for display (only latest per location+date)
-        const key = `${normalizeLocation(op.location)}_${getDateStr(op.epoch)}`;
-        if (!alertsMap.has(key) || op.epoch > (alertsMap.get(key).epoch || 0)) {
-          alertsMap.set(key, op);
+      // Firestore check: alert already sent
+      const alertDocRef = doc(alertsSentColRef, op.id);
+      const alertDocSnap = await getDoc(alertDocRef);
+
+      if (!alertDocSnap.exists()) {
+        try {
+          // SEND PUSH NOTIFICATION instead of email
+          await sendAlertNotification(currentUser.uid, {
+            title: `New alert for ${op.location}`,
+            message: `${op.name || op.email} has visited ${op.location} at ${op.datetimeLocal || new Date(op.epoch).toLocaleString()} and reported: ${op.whatFacing}`,
+          });
+
+          // Store alert record in Firestore
+          await setDoc(alertDocRef, {
+            postId: op.id,
+            locationNormalized: normalizeLocation(op.location),
+            datetimeEpoch: op.epoch,
+            sentAt: serverTimestamp()
+          });
+
+          console.log("📲 Alert notification sent & recorded for post:", op.id);
+        } catch (err) {
+          console.error("❌ Notification sending failed for post:", op.id, err);
         }
+      } else {
+        console.log(`ℹ️ Notification NOT sent for post ${op.id} — alert already recorded.`);
+      }
+
+      const key = `${normalizeLocation(op.location)}`;
+      if (!alertsMap.has(key) || op.epoch > (alertsMap.get(key).epoch || 0)) {
+        alertsMap.set(key, op);
       }
     }
   }
 
   renderAlerts(Array.from(alertsMap.values()));
 }
+
 
 
 function renderAlerts(alertList) {
